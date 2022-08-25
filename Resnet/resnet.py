@@ -1,15 +1,20 @@
 # Import
 
 import sys
+
+import torch
+import wandb
+
 sys.path.append('../.')
 
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
 from torch import nn, optim
+from torch.functional import F
 from MyUtils.template import train_model
 from MyUtils.python_and_os import ignore_warnings, PIL_load_cuncate
-from MyUtils.plot import train_info_plot, TrainInfo
+
 
 ignore_warnings()
 PIL_load_cuncate()
@@ -17,6 +22,7 @@ PIL_load_cuncate()
 # config
 
 config = {
+    'project': 'Resnet',
     'lr': 1e-3,
     'epoch': 30,
     'batch_size':32,
@@ -24,9 +30,8 @@ config = {
     'momentum': 0.9,
     'device': 'cuda',
     'save': True,
-    'save_dir': "epoch_{}_{.f3}.pth"
+    'save_dir': "epoch_{}_{:.3f}.pth"
 }
-
 # Model definition
 
 class MyResnet(nn.Module):
@@ -116,10 +121,21 @@ optimizer = optim.SGD([{
 
 # Train loop
 
-def test_model(config:dict,model:nn.Module,train_info:TrainInfo): #TODO: complete the test template code
+def test_model(config:dict,model:nn.Module): #TODO: complete the test template code
     print("test to be fullfilled")
 
+def output_process(output:torch.Tensor):
+
+    if len(output.shape) == 2:
+        # print("prediction.shape",output.shape)
+        # print("prediction",output)
+        return F.softmax(output,dim=1)
+    else:
+        # print("target.shape", output.shape)
+        # print("target", output)
+        return F.one_hot(output,12)
+
+wandb.init(project=config['project'],config=config)
 for epoch in range(config['epoch']):
-    train_info = train_info_plot()
-    epoch_loss = train_model(config=config,model=model,data_loader=train_dataloader,loss_func=loss_func,optimizer=optimizer,epoch_num=epoch,train_info=train_info)
-    test_model(config=config,model=model,train_info=train_info)
+    epoch_loss = train_model(config=config,model=model,data_loader=train_dataloader,loss_func=loss_func,optimizer=optimizer,epoch_num=epoch,output_process=output_process)
+    test_model(config=config,model=model)

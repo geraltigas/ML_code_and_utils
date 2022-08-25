@@ -4,9 +4,11 @@ from torch.optim import Optimizer
 from torch import Tensor,save
 import os
 from tqdm import tqdm
-from MyUtils.plot import TrainInfo
+from collections.abc import Callable
+import wandb
 
-def train_model(config:dict,model:Module,data_loader:DataLoader,loss_func:Module,optimizer:Optimizer,epoch_num:int,train_info:TrainInfo) -> int:
+def train_model(config:dict,model:Module,data_loader:DataLoader,loss_func:Module,optimizer:Optimizer,epoch_num:int,output_process:Callable[[Tensor],Tensor]) -> int:
+
     loss_total = 0
     model.train()
     model.to(config['device'])
@@ -17,6 +19,9 @@ def train_model(config:dict,model:Module,data_loader:DataLoader,loss_func:Module
             labels:Tensor = labels.to(config['device'])
 
             pres = model.forward(featrues)
+
+            pres = output_process(pres).float()
+            labels = output_process(labels).float()
 
             batch_loss:Tensor = loss_func(pres,labels)
 
@@ -32,7 +37,12 @@ def train_model(config:dict,model:Module,data_loader:DataLoader,loss_func:Module
         os.path.exists('checkpoints') or os.mkdir('checkpoints')
         save(model.state_dict(),('checkpoints/'+config['save_dir']).format(epoch_num,loss_total))
 
-    print("Epoch_loss:{}".format(epoch_num,loss_total))
+    wandb.log({
+        'epoch': epoch_num,
+        'loss': loss_total
+    })
+
+
     return loss_total
 
 
