@@ -37,9 +37,9 @@ config = {
 class MyResnet(nn.Module):
 
     def __init__(self):
-        from torchvision.models import resnet50, ResNet50_Weights
+        from torchvision.models import resnet18, ResNet18_Weights
         super(MyResnet,self).__init__()
-        raw_resnet = resnet50(weights=ResNet50_Weights.DEFAULT)
+        raw_resnet = resnet18(weights=ResNet18_Weights.DEFAULT)
         raw_resnet_fc_inc = raw_resnet.fc.in_features
         raw_resnet.fc = nn.Linear(raw_resnet_fc_inc,12)
         self.resnet = raw_resnet
@@ -81,6 +81,7 @@ valid_dataset = ImageFolder(root='data/valid',transform=valid_transform)
 # DataLoader definition
 
 train_dataloader = DataLoader(train_dataset,batch_size=config['batch_size'],shuffle=True)
+test_dataloader = DataLoader(test_dataset)
 
 # Model initialization
 
@@ -121,8 +122,25 @@ optimizer = optim.SGD([{
 
 # Train loop
 
-def test_model(config:dict,model:nn.Module): #TODO: complete the test template code
-    print("test to be fullfilled")
+def test_model(config:dict,model:nn.Module,test_dataLoader:DataLoader): #TODO: complete the test template code
+    model.eval()
+    with torch.no_grad():
+
+        num_total = 0
+        acc_total = 0
+        for i,(input,target) in enumerate(test_dataLoader):
+            input = input.to(config['device'])
+            output:torch.Tensor = model(input)
+            out_index = F.softmax(output).argmax(dim=1)
+            target = target.to(config['device'])
+            if (out_index == target)[0].item():
+                acc_total += 1
+            num_total += 1
+
+        wandb.log({
+            'test_acc': acc_total/num_total
+        })
+        return acc_total/num_total
 
 def output_process(output:torch.Tensor):
 
@@ -138,4 +156,4 @@ def output_process(output:torch.Tensor):
 wandb.init(project=config['project'],config=config)
 for epoch in range(config['epoch']):
     epoch_loss = train_model(config=config,model=model,data_loader=train_dataloader,loss_func=loss_func,optimizer=optimizer,epoch_num=epoch,output_process=output_process)
-    test_model(config=config,model=model)
+    test_model(config=config,model=model,test_dataLoader=test_dataloader)
