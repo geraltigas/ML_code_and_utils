@@ -37,11 +37,11 @@ def train_model(config:dict,model:Module,data_loader:DataLoader,loss_func:Module
         os.path.exists('checkpoints') or os.mkdir('checkpoints')
         save(model.state_dict(),('checkpoints/'+config['save_dir']).format(epoch_num,loss_total))
 
-    wandb.log({
-        'epoch': epoch_num,
-        'loss': loss_total
-    })
-
+    if config['enable_wandb']:
+        wandb.log({
+            'epoch': epoch_num,
+            'loss': loss_total
+        })
 
     return loss_total
 

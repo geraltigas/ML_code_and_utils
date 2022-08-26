@@ -193,4 +193,3 @@ if config['enable_wandb']:
 
 model.load_state_dict(torch.load("./checkpoints/epoch_7_376.182.pth"))
 print(valid_model(config=config,model=model,test_dataLoader=test_dataloader))
-

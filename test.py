@@ -1,7 +1,7 @@
 import sys
 sys.path.append('../.')
 
-from MyUtils.python_and_os import ignore_warnings
+from myutils.python_and_os import ignore_warnings
 
 
 ignore_warnings()

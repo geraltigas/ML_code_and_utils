@@ -1,6 +1,6 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-from MyUtils.plot import show_scale,show_distribution
+from myutils.plot import show_scale,show_distribution
 
 def show_dataframe_info(dataframe:pd.DataFrame,value_count_nun:int = 100):
     print(dataframe.info(),"\n")
