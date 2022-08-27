@@ -37,3 +37,21 @@ def show_tensor(tensor:Tensor,title=None):
         plt.title(title)
         plt.pause(0.001)
 
+def plot_y(y:list[float]|list[list],title:str = None):
+    import  numpy as np
+    import matplotlib.pyplot as plt
+    plt.title(title)
+    if isinstance(y[0],float):
+        x = np.linspace(0,len(y),len(y))
+        fig, ax = plt.subplots()
+        line1, = ax.plot(x, y)
+        ax.legend()
+        plt.show()
+    else:
+        fig, ax = plt.subplots()
+        for y_ in y:
+            x = np.linspace(0,len(y_),len(y_))
+            line1, = ax.plot(x, y_)
+        ax.legend()
+        plt.show()
+    plt.title(title)

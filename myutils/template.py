@@ -25,6 +25,9 @@ def train_model(config:dict,model:Module,data_loader:DataLoader,loss_func:Module
 
             batch_loss:Tensor = loss_func(pres,labels)
 
+            if config['DEBUG']:
+                print("pres and labels : ",pres,labels)
+
             optimizer.zero_grad()
             batch_loss.backward()
             optimizer.step()
