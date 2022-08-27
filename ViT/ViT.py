@@ -1,5 +1,4 @@
-# Import
-
+# imports
 import sys
 
 import torch
@@ -7,49 +6,60 @@ import wandb
 
 sys.path.append('../.')
 
-from torchvision import transforms
-from torchvision.datasets import ImageFolder
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader,Dataset
 from torch import nn, optim
 from torch.functional import F
 from myutils.template import train_model
-from myutils.python_and_os import ignore_warnings, PIL_load_cuncate
-from myutils.plot import show_tensor
+from myutils.python_and_os import ignore_warnings,PIL_load_cuncate
 
 ignore_warnings()
 PIL_load_cuncate()
-
 # config
 
 config = {
-    'project': 'Resnet',
+    'project': 'ViT',
     'lr': 1e-3,
     'epoch': 30,
-    'batch_size':32,
+    'batch_size':1,
     'dataloader_shuffle': True,
     'momentum': 0.9,
     'device': 'cuda',
     'save': True,
     'save_dir': "epoch_{}_{:.3f}.pth",
-    'enable_wandb': False,
+    'enable_wandb': True,
+    'LSTM_window': 10,
+    'DEBUG': False,
+    'LOG': True,
+    'LOG_DIR': './log.txt',
 }
-# Model definition
 
-class MyResnet(nn.Module):
+# log relocation
+
+import os
+
+file_path = config['LOG_DIR']
+
+if config['LOG']:
+    if os.path.exists(file_path):
+      os.remove(file_path)
+    sys.stdout = open(file_path, "w")
+# Model definition
+class MyViT(nn.Module):
 
     def __init__(self):
-        from torchvision.models import resnet18, ResNet18_Weights
-        super(MyResnet,self).__init__()
-        raw_resnet = resnet18(weights=ResNet18_Weights.DEFAULT)
-        raw_resnet_fc_inc = raw_resnet.fc.in_features
-        raw_resnet.fc = nn.Linear(raw_resnet_fc_inc,12)
-        self.resnet = raw_resnet
+        super(MyViT,self).__init__()
+        import timm
+        raw_ViT = timm.create_model("vit_base_patch16_224",pretrained=True)
+        raw_ViT_fc_ic = raw_ViT.head.in_features
+        raw_ViT.head = nn.Linear(raw_ViT_fc_ic,12)
+        self.vit = raw_ViT
 
     def forward(self,x):
-        return self.resnet(x)
+        return self.vit(x)
 
 # Preprocess
 
+from torchvision import transforms
 train_transform = transforms.Compose([
     # transforms.ToPILImage(),
     transforms.Resize(224),
@@ -74,39 +84,39 @@ valid_transform = transforms.Compose([
 ])
 
 # Dataset Definition
+from torchvision.datasets import ImageFolder
 
-train_dataset = ImageFolder(root='data/train',transform=train_transform)
-test_dataset = ImageFolder(root='data/test',transform=test_transform)
-valid_dataset = ImageFolder(root='data/valid',transform=valid_transform)
-
+train_dataset = ImageFolder(root='../Resnet/data/train',transform=train_transform)
+test_dataset = ImageFolder(root='../Resnet/data/test',transform=test_transform)
+valid_dataset = ImageFolder(root='../Resnet/data/valid',transform=valid_transform)
 # DataLoader definition
-
 train_dataloader = DataLoader(train_dataset,batch_size=config['batch_size'],shuffle=True)
 test_dataloader = DataLoader(test_dataset)
 valid_dataloader = DataLoader(valid_dataset)
-
 # Model initialization
+model = MyViT()
 
-model = MyResnet()
+def init_model(model:nn.Module):
+    for name, i in model.named_modules():
+        if isinstance(i,nn.Linear) and "head" in name:
+            print(name)
+            nn.init.xavier_uniform_(i.weight)
+            nn.init.constant_(i.bias,0)
+
+init_model(model)
 
 # Loss function and optimizer
-
-## Fine tune param select
-
 other_param = []
-layer4_param = []
-fc_param = []
+head_param = []
 i = 0
-
 for name, param in  model.named_parameters():
-    if "layer4" in name:
-        layer4_param.append(param)
-    elif "fc" in name:
-        fc_param.append(param)
+    if "head" in name:
+        head_param.append(param)
     else:
         other_param.append(param)
     i += 1
-
+print(i,len(other_param),len(head_param))
+## Fine tune param select
 
 loss_func = nn.CrossEntropyLoss()
 loss_func = loss_func.to(config['device']) # using cuda
@@ -114,15 +124,15 @@ optimizer = optim.SGD([{
     'params': other_param,
     'lr':0
 },{
-    'params': fc_param,
+    'params': head_param,
     'lr': config['lr']*10
-},{
-    'params': layer4_param,
-    'lr':config['lr']
-}], config['lr'],momentum=0.9)
+}],config['lr'],momentum=0.9,weight_decay=0.001)
 
 
 # Train loop
+
+from myutils.plot import show_tensor
+
 
 def test_model(config:dict,model:nn.Module,test_dataLoader:DataLoader): #TODO: complete the test template code
     model.eval()
@@ -144,6 +154,7 @@ def test_model(config:dict,model:nn.Module,test_dataLoader:DataLoader): #TODO: c
                 'test_acc': acc_total/num_total
             })
         return acc_total/num_total
+
 
 def valid_model(config:dict,model:nn.Module,test_dataLoader:DataLoader):
     model.eval()
@@ -173,6 +184,8 @@ def valid_model(config:dict,model:nn.Module,test_dataLoader:DataLoader):
                 })
             return acc_total/num_total
 
+
+# process after model output and before loss func
 def output_process(output:torch.Tensor):
 
     if len(output.shape) == 2:
@@ -186,9 +199,9 @@ def output_process(output:torch.Tensor):
 
 if config['enable_wandb']:
     wandb.init(project=config['project'],config=config)
-# for epoch in range(config['epoch']):
-#     epoch_loss = train_model(config=config,model=model,data_loader=train_dataloader,loss_func=loss_func,optimizer=optimizer,epoch_num=epoch,output_process=output_process)
-#     test_model(config=config,model=model,test_dataLoader=test_dataloader)
+for epoch in range(config['epoch']):
+    epoch_loss = train_model(config=config,model=model,data_loader=train_dataloader,loss_func=loss_func,optimizer=optimizer,epoch_num=epoch,output_process=output_process)
+    test_model(config=config,model=model,test_dataLoader=test_dataloader)
 
-model.load_state_dict(torch.load("./checkpoints/epoch_7_376.182.pth"))
-print(valid_model(config=config,model=model,test_dataLoader=test_dataloader))
+# model.load_state_dict(torch.load("./checkpoints/epoch_7_376.182.pth"))
+# print(valid_model(config=config,model=model,test_dataLoader=test_dataloader))
