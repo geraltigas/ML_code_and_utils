@@ -16,7 +16,6 @@ from myutils.template import train_model
 from myutils.python_and_os import ignore_warnings, PIL_load_cuncate
 from myutils.plot import show_tensor
 
-
 ignore_warnings()
 PIL_load_cuncate()
 
